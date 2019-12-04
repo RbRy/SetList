@@ -3,6 +3,7 @@ import math   # Needed for .isnan()
 import json   # Needed for formatting our commands
 import socket # Needed for TCP comms
 import http.client # Needed to extract correct port
+import time
 
 def getPort(setlistIP):
 	"""Use LABVIEW service finder to get the correct port number"""
@@ -55,10 +56,22 @@ def setListAssembleCommand(mulliganDict={}, instantDict={}, sequenceArrayDict={}
 def packCommand(commandString):
         cmdLength=len(commandString)
         formatString=">i" + str(cmdLength) + "s"
-        print(formatString)
-        print(struct.pack(formatString, cmdLength, commandString.encode()))
+        #print(formatString)
+        #print(struct.pack(formatString, cmdLength, commandString.encode()))
         return struct.pack(formatString, cmdLength, commandString.encode())
 
+def setListRun(single=True,sequence=False):
+	"""Takes an array formed from setListVariable(s) and sets it up for feedback communication"""
+	if(single):
+		return {"run":"single"}
+	elif(sequence):
+		return {"run":"sequence"}
+	return {}
+	
+def setListRunning():
+	"""Takes an array formed from setListVariable(s) and sets it up for feedback communication"""
+	return {"running":"running"}
+		
 def sendCommand(setlistIP, commandString, setlistPort=None):
 	"""Sends a cmd over TCP after creating a connection, then reads respNum responses of size respSize bytes"""
 	
@@ -71,10 +84,26 @@ def sendCommand(setlistIP, commandString, setlistPort=None):
 	sock.send(packCommand(commandString))
 	# Four bytes for an int for total message length
 	response = sock.recv(4)
-	print(response)
+	#print(response)
 	responseLength = struct.unpack(">i", response)[0]
-	print(responseLength)
+	#print(responseLength)
 	# Load and stringify the message
 	response = sock.recv(responseLength).decode()
 	sock.close()
 	return response
+	
+if __name__=="__main__":
+	#sendCommand("localhost",setListAssembleCommand(setListInstantSet(setListVariable("Correlations",defaultValue=1))))
+	#sendCommand("localhost",setListAssembleCommand(setListRun(single=True)))
+	#
+	init_filenum = int(json.loads(sendCommand("localhost",setListAssembleCommand(setListRunning())))['responses'][0])
+	print(init_filenum)
+	num_files = 10
+	sendCommand("localhost",setListAssembleCommand(setListRun(single=False, sequence=True)))
+	curr_filenum = init_filenum
+	while(curr_filenum < init_filenum + num_files):
+		curr_filenum = int(json.loads(sendCommand("localhost",setListAssembleCommand(setListRunning())))['responses'][0])
+		print(curr_filenum)
+		time.sleep(1)
+	time.sleep(1)
+	print("done")
